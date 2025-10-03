@@ -13,3 +13,4 @@ Dit resulteert in een gemiddelde graasdruk van xx in WHN, xx in WHZ grootvee-een
 
 ```{r grazers-map2, fig.cap="Kaart van terreingebruik door grote grazers in Vlaanderen"}
 knitr::include_graphics("figures/grazers_map.png")
+```
