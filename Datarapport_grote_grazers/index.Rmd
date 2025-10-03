@@ -35,7 +35,7 @@ cover_photo:
 # cover_description:
 # cover:
 # doi:
-# reportnr:
+# reportnr: 0
 # ordernr:
 # depotnr: 
 client:
@@ -65,7 +65,6 @@ output:
   # Hence don't use "Build all formats".
   INBOmd::pdf_report: default
   INBOmd::gitbook: default
-  INBOmd::epub_book: default
   bookdown::dontrun: default
 ---
 
