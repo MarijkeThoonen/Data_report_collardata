@@ -1,6 +1,6 @@
 ---
 # generic options. See ?INBOmd::pdf_report() for full list and more details.
-title:Grote grazers in beeld
+title: Grote grazers in beeld
 # subtitle: Een data-rapport over terreingebruik in Vlaamse natuurgebieden
 author: 
   - name:
@@ -29,7 +29,7 @@ reviewer:
 funder: Instituut voor Natuur- en Bosonderzoek (INBO)
 rightsholder: Instituut voor Natuur- en Bosonderzoek (INBO)
 community: inbo
-keywords:
+keywords: collar; analysis
 # year: 2025
 cover_photo:
 # cover_description:
@@ -130,7 +130,4 @@ if (interactive()) {
 ```{r grazers-map, fig.cap="Kaart van terreingebruik door grote grazers in Vlaanderen"}
 knitr::include_graphics("figures/grazers_map.png")
 
-
-##Once eport is near completion, use add_report_numbers() to append the DOI, report number, depot number and other information to the meta data.
-
-Legacy way to start a
+```
