@@ -1,5 +1,5 @@
 book_filename: "2025_Data_rapport_begrazing_natuurgebieden.Rmd"
-output_dit: "./output"
+output_dir: "./output"
 delete_merged_file: TRUE
 language:
   label:
