@@ -1,6 +1,6 @@
 book_filename: "2025_Data_rapport_begrazing_natuurgebieden.Rmd"
-output_dir: "G:/Gedeelde drives/Procesbeheer/PB07_Begrazing_Collars/R scripts PB07_Begrazing_Collars/Data_report_collardata/"
-delete_merged_file: FALSE
+output_dit: "./output"
+delete_merged_file: TRUE
 language:
   label:
     fig:    'Figuur '
@@ -14,3 +14,4 @@ language:
     ex:     'Voorbeeld '
     proof:  'Bewijs. '
     remark: 'Opmerking. '
+edit: https://github.com/MarijkeThoonen/Data_report_collardata/edit/main/Datarapport_grote_grazers/%s
