@@ -11,4 +11,4 @@ site_libs
 
 googledrivedata
 *.tex
-*/child_files/gebieden/*
+child_files/gebieden/*
