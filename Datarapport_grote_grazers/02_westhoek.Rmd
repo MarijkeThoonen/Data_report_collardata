@@ -1,11 +1,12 @@
 # Begrazingsproject De Westhoek
 
-Het gebied kent dit begrazingsbeheer sinds 2009 waarbij duingraslanden, droge en vochtige duinheiden en duinstruwelen - die in mozaïek voorkomen - samen zijn ingerasterd. Aanvullend machinaal beheer gebeurt onder andere door afschrapen van vegetatie om verstuiving te herstellen. Het overkoepelende beheer van bos, struweel, grasland en open duin richt zich op het behoud van biodiversiteit, herstel van verstuiving en ondersteuning van doelsoorten. Het begrazingsproject heeft als voornaamste doel het behoud en herstel van duinnatuur door gecontroleerde begrazing.
+De Westhoek (340 ha, beheerd door ANB) bestaat uit een complex van duinstruweel en -bos, droge duingraslanden, vochtige duinvalleien en stuivende duinen die in mozaïek voorkomen en samen zijn ingerasterd. Tijdens de tweede helft van de 20ste eeuw is het struweel sterk uitgebreid ten koste van de open duinhabitats. Stopzetting van het historisch gebruik als graasgebied is hiervan een belangrijke oorzaak. De voorbije decennia treedt ook een sterke fixatie op van stuivende duinen. De begrazing werd opgestart vanaf 1997 en heeft vandaag een noordelijk, een zuidelijk blok en oostelijk blok. Er worden zowel Konikpaarden, Schotse hooglandrunderen als Shetland  pony’s ingeschaard en tijdelijk werd er ook begraasd door ezels. 
 
-In de Westhoek monitoren we het terreingebruik in twee begrazingsrasters: Westhoek Noord (81 ha) en Westhoek Zuid (54 ha) (zie figuur @). In het zuidelijke raster graasden in de periode 2021-2025 één kudde Shetland-pony’s van 5 dieren, één kudde Konik-paarden van 6 dieren en één kudde Schotse Hooglandrunderen van x dieren. In het noordelijk deel graasden twee kuddes Konik-paarden van 7 en 4 dieren en één kudde Schotse Hooglandrunderen van x dieren. Westhoek Noord en Westhoek Zuid waren tot oktober 2023 enkel verbonden in de winterperiode. Vanaf dan werden de graasgebieden permanent verbonden. De deelkuddes Konik-paarden bleven bestaan.
+Initiële doelstelling van de begrazing was het aanpakken van vergrassing (vooral met duinriet), verruiging en verstruweling. Het overkoepelende beheer van bos, struweel, grasland en open duin richt zich op het behoud van biodiversiteit, herstel van verstuiving en ondersteuning van doelsoorten. Het begrazingsproject heeft als voornaamste doel het behoud en herstel van duinnatuur door gecontroleerde begrazing. Zo'n 50 ha truweel en bos werden, in verschillende fasen, ook machinaal verwijderd. Hiermee ontwikkelt zich in het gebied een zeer rijke vegetatiestructuur gaande van kaal zand tot bos. De grazers spelen hierin een cruciale rol. Toch blijken ze niet in staat om de verstruweling tegen te houden en blijft aanvullend machinaal beheer nodig om de kenmerkende open habitats in stand te houden.
+
+In de Westhoek monitoren we het terreingebruik in twee begrazingsrasters: Westhoek Noord (81 ha) en Westhoek Zuid (54 ha) (zie figuur @). In het zuidelijke raster graasden in de periode 2021-2023 één kudde Shetland-pony’s van 4 dieren, één kudde Konik-paarden van 5 dieren en één kudde Schotse Hooglandrunderen van 6 dieren. In het noordelijk deel graasden in die periode twee kuddes Konik-paarden van 7 en 4 dieren. Westhoek Noord en Westhoek Zuid waren tot oktober 2023 enkel verbonden in de winterperiode. Vanaf dan werden de graasgebieden permanent verbonden. Tesamen begraasden 17 paarden, 4 Shetlandpony's en 10 Schotse hooglandrunderen het ééngemaakte graasblok in 2024 en 2005. De deelkuddes paarden bleven bestaan.
 
 Dit resulteert in een gemiddelde graasdruk van xx in WHN, xx in WHZ grootvee-eenheden per ha per jaar. Het gaat om circa xx graasdagen per hectare per jaar.
-
 
 ## Terreingebruik in de Westhoek
 
@@ -13,4 +14,683 @@ Dit resulteert in een gemiddelde graasdruk van xx in WHN, xx in WHZ grootvee-een
 
 ```{r grazers-map2, fig.cap="Kaart van terreingebruik door grote grazers in Vlaanderen"}
 knitr::include_graphics("figures/grazers_map.png")
+
+*.gdoc
+*.gsheet
+*.gslides
+
 ```
+
+## Load packages
+```{r packages, include=FALSE}
+library(broom)
+library(dplyr)
+library(ggmap)
+library(ggplot2)
+library(googlesheets4)
+gs4_auth()
+library(gridExtra)
+library(here) 
+library(leaflet)
+library(leaflet.extras)
+library(mapview)
+library(ggnewscale)
+library(kableExtra)
+library(knitr)
+library(patchwork)
+library(purrr)
+library(prismatic) 
+library(raster)
+library(readxl)
+library(scales)
+library(sf)
+library(terra)
+library(tidyr)
+library(tidyterra)
+library(tidyverse)
+library(viridis)
+```
+
+```{r settings, echo=FALSE}
+#Set working directory to folder containing currently active script
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+#Get location and year
+script_name <- basename(rstudioapi::getActiveDocumentContext()$path)
+parts <- strsplit(gsub(".Rmd$", "", script_name), " ")[[1]]
+location <- parts[4]
+
+#Edit the code according to the years of interest
+years <- c("2020","2021","2022","2023","2024")
+
+#Set base directory
+base_directory <- "G:/Gedeelde drives/Procesbeheer/PB07_Begrazing_Collars/R scripts PB07_Begrazing_Collars/Westhoek/Over jaren heen"
+```
+
+```{r function to load and combine collar data, echo=FALSE}
+# Function to load collar data for a specific year
+load_collar_data <- function(year) {
+  file_path <- file.path(base_directory, "..", year, "Processed data", "collardata.shp")
+  if (file.exists(file_path)) {
+    read_sf(file_path) %>%
+      dplyr::rename(
+        temperature = temprtr,
+        datetime = datetim,
+        id_collar = id_cllr,
+        day_part = day_prt
+      ) %>%
+      mutate(
+        temperature = as.numeric(temperature), # Standardize to numeric
+        datetime = as.POSIXct(datetime),       # Standardize datetime
+        year = year                            # Add a year column
+      )
+  } else {
+    NULL
+  }
+}
+
+# Iterate over the years and combine data
+collar <- bind_rows(map(years, load_collar_data))
+
+rm(load_collar_data)
+```
+
+```{r load GIS data, echo=FALSE}
+#raster 
+#noord en zuid, without exclosures
+shapefile_directory <- normalizePath(file.path("..", "..", "..", "..", "R scripts PB07_Begrazing_Collars", "Vlaanderen - over studie gebieden heen", "2023", "Processed data"))
+
+raster <- st_read(file.path(shapefile_directory, "Raster_Westhoek_2022.shp"))
+
+rm(shapefile_directory)
+
+#biotope groups 
+biotope_directory <- normalizePath(file.path("..","..","..","..", "R scripts PB07_Begrazing_Collars", "Vlaanderen - over studie gebieden heen", "BWK" ))
+
+biotope <- st_read(file.path(biotope_directory, "GIS_data2025_biotope.gpkg"))
+
+biotope <- st_make_valid(biotope)
+
+rm(biotope_directory)
+
+#ortho photo
+ortho_directory <- normalizePath(file.path("..","..","..","..", "R scripts PB07_Begrazing_Collars", "Vlaanderen - over studie gebieden heen", "Luchtfotos" ))
+
+ortho <- rast(file.path(ortho_directory, "Westhoek.tif"))
+crs(ortho) <- "EPSG:31370"  # Lambert 72
+
+ortho_df <- as.data.frame(ortho, xy = TRUE)
+
+ortho_df <- ortho_df %>%
+  mutate(hex = rgb(Westhoek_1/255, Westhoek_2/255, Westhoek_3/255)) # Voeg hex-kleur toe
+
+ortho_raster <- ggplot(ortho_df, aes(x = x, y = y, fill = hex)) +
+  geom_raster() +
+  geom_sf(data = raster, inherit.aes = FALSE, fill = NA, color = "red", size = 0.5) +
+  scale_fill_identity() +
+  coord_sf() +
+  theme_minimal()
+
+ortho_raster
+
+output_path_figures <- file.path("G:/Gedeelde drives/Procesbeheer/PB07_Begrazing_Collars/R scripts PB07_Begrazing_Collars/Data_report_collardata/Datarapport_grote_grazers/figures")
+
+output_path <- file.path(output_path_figures, paste0("Ortho_", location, ".jpeg"))
+ggsave(output_path, plot = ortho_raster, width = 8.27, height = 11.69, units = "in", dpi = 300)
+
+rm(ortho_directory)
+rm(ortho)
+rm(ortho_df)
+rm(ortho_raster)
+rm(output_path)
+
+#this needs a caption: "Luchtfoto van het Westhoekreservaat met het noordelijke en zuidelijke graasblok."
+```
+
+
+
+```{r add herd and seasonal info and make bbox, echo=FALSE}
+#Load file with animal species
+sheet_url <- "https://docs.google.com/spreadsheets/d/11AMe6Ec1wfqP8PIFok-fldt-Yg0GcYk8Lz6hDwOE6Zw/edit?usp=sharing"
+herd <- read_sheet(sheet_url) %>% 
+  filter(Gebied == location)
+herd$Jaar <- as.character(herd$Jaar)
+
+rm(sheet_url)
+
+#Add animal species
+collar_herd <- collar %>%
+  left_join(herd, by = c("id_collar" = "Serienummer", "year" = "Jaar")) %>% 
+  filter(!is.na(Kudde_code))
+
+collar_herd <- collar_herd %>%
+  mutate(month = format(date, "%m"),  # Extract month from the date
+         season = case_when(
+           month %in% c("12", "01", "02") ~ "Winter",
+           month %in% c("03", "04", "05") ~ "Lente",
+           month %in% c("06", "07", "08") ~ "Zomer",
+           month %in% c("09", "10", "11") ~ "Herfst",
+           TRUE ~ NA_character_  # Fallback in case of unexpected values
+         ))
+
+# Define the seasons
+seasons <- c("Winter", "Lente", "Zomer", "Herfst")
+
+# Ensure season is a factor with the correct order
+collar_herd <- collar_herd %>%
+  mutate(season = factor(season, levels = c("Winter", "Lente", "Zomer", "Herfst")))
+
+# Bounding box van alle collars
+all_bbox <- st_bbox(collar_herd) # maak een bbox-class
+
+# Vergroot de bbox met 10 pct
+x_margin <- (all_bbox["xmax"] - all_bbox["xmin"]) * 0.1
+y_margin <- (all_bbox["ymax"] - all_bbox["ymin"]) * 0.1
+all_bbox["xmin"] <- all_bbox["xmin"] - x_margin
+all_bbox["xmax"] <- all_bbox["xmax"] + x_margin
+all_bbox["ymin"] <- all_bbox["ymin"] - y_margin
+all_bbox["ymax"] <- all_bbox["ymax"] + y_margin
+
+bbox_poly <- st_as_sfc(all_bbox) # maak sf-polygon
+st_crs(bbox_poly) <- st_crs(collar_herd) # zelfde CRS als
+if (st_crs(collar_herd) != st_crs(biotope)) { # Controleert of CRS van collar en biotope verschillen en transformeert bbox_poly naar CRS van biotope als dat zo is.
+  bbox_poly <- st_transform(bbox_poly, st_crs(biotope))
+} 
+
+# Begrens biotope tot collar_herd bbox
+expanded_biotope <- st_intersection(biotope, st_make_valid(bbox_poly))
+```
+
+```{r table collarnumbers and measurement years}
+#This table needs an automated caption
+#Tabel x. Gegevens (diersoort, graasperiode, kuddegrootte, monitoring) over de verschillende kuddes die grazen in de onderzochte graasblokken.
+
+
+# Eventueel NA’s vervangen door "Na" voor nettere weergave
+herd <- herd %>%
+  mutate(across(everything(), ~replace(., is.na(.), "Na")))
+
+# Maak de tabel
+kable(herd, 
+      caption = "Overzicht van de kuddes in de onderzochte graasblokken (diersoort, graasperiode, kuddegrootte, monitoring).",
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"),
+                full_width = FALSE,
+                position = "center") %>%
+  column_spec(1, bold = TRUE)  # bijvoorbeeld eerste kolom dikgedrukt
+
+```
+
+```{r heatmaps per season/species}
+# Generate heatmap with faceting by year and season
+plot_heatmap <- function(dier) {
+  
+  # Filter op diersoort
+  species_data <- collar_herd %>% filter(Diersoort == dier)
+  if (nrow(species_data) == 0) {
+    message("⚠️ Geen data voor ", dier)
+    return(NULL)
+  }
+  
+  # Punten extraheren en NA verwijderen
+  points_df <- st_coordinates(species_data) %>%
+    as.data.frame() %>%
+    rename(X = X, Y = Y) %>%
+    mutate(
+      X = as.numeric(X),
+      Y = as.numeric(Y),
+      season = species_data$season
+    ) %>%
+    filter(!is.na(X) & !is.na(Y))
+  
+  if (nrow(points_df) == 0) {
+    message("⚠️ Alle coördinaten NA voor ", dier)
+    return(NULL)
+  }
+  
+  # Controleer aantal punten per seizoen
+  season_counts <- points_df %>% count(season)
+  valid_seasons <- season_counts %>% filter(n >= 1500) %>% pull(season)
+  
+  if (length(valid_seasons) == 0) {
+    message("⚠️ Onvoldoende data (<1500 punten per seizoen) voor ", dier)
+    return(NULL)
+  }
+  
+  # Beperk dataset tot seizoenen met genoeg data
+  points_df <- points_df %>% filter(season %in% valid_seasons)
+  
+  # Grenzen bbox
+  bb <- st_bbox(bbox_poly)
+  xlim_vals <- c(as.numeric(bb["xmin"]), as.numeric(bb["xmax"]))
+  ylim_vals <- c(as.numeric(bb["ymin"]), as.numeric(bb["ymax"]))
+  
+  # Plot
+  p <- ggplot() + 
+    geom_bin2d(data = collar_herd, 
+             mapping = aes(x = st_coordinates(geometry)[, 1], 
+                           y = st_coordinates(geometry)[, 2], 
+                           fill = after_stat(ndensity)), 
+             binwidth = c(40, 40)) +
+    scale_fill_viridis_c(option = "D", direction = -1, name = "Dichtheid", na.value = NA, 
+                        limits = c(0, NA)) +
+    facet_wrap(~season) +
+    coord_sf(xlim = xlim_vals, ylim = ylim_vals) +
+    labs(
+      title = paste("Heatmap voor", dier),
+      subtitle = paste("Alleen seizoenen met ≥1500 punten"),
+      x = "Longitude", y = "Latitude"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.justification = "center",
+      legend.key.width = unit(1.2, "cm"),
+      legend.key.height = unit(0.4, "cm"),
+      legend.margin = margin(t = 0, b = 5, unit = "pt"),
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    ) +
+    guides(
+      fill = guide_legend(nrow = 1, title.position = "top"),
+      color = guide_legend(nrow = 1, title.position = "top")
+    )
+  
+  print(p)
+  
+  # Opslaan
+  output_path <- file.path("../Graphs", paste0("Heathmap_", dier, ".jpeg"))
+  ggsave(output_path, plot = p, width = 8.27, height = 11.69, units = "in", dpi = 300)
+  
+  message("💾 Opgeslagen: ", output_path)
+  return(p)
+}
+
+# Loop over alle diersoorten
+unique_species <- unique(collar_herd$Diersoort)
+message("Aantal diersoorten: ", length(unique_species))
+
+for (d in unique_species) {
+  plot_heatmap(d)
+}
+```
+```{r heatmaps per season/herd}
+# Generate heatmap with faceting by season
+plot_heatmap_kudde <- function(kudde) {
+  
+  # Filter op diersoort
+  species_data <- collar_herd %>% filter(Kudde_code == kudde)
+  if (nrow(species_data) == 0) {
+    message("⚠️ Geen data voor ", kudde)
+    return(NULL)
+  }
+  
+  # Punten extraheren en NA verwijderen
+  points_df <- st_coordinates(species_data) %>%
+    as.data.frame() %>%
+    rename(X = X, Y = Y) %>%
+    mutate(
+      X = as.numeric(X),
+      Y = as.numeric(Y),
+      season = species_data$season
+    ) %>%
+    filter(!is.na(X) & !is.na(Y))
+  
+  if (nrow(points_df) == 0) {
+    message("⚠️ Alle coördinaten NA voor ", kudde)
+    return(NULL)
+  }
+  
+  # Controleer aantal punten per seizoen
+  season_counts <- points_df %>% count(season)
+  valid_seasons <- season_counts %>% filter(n >= 1500) %>% pull(season)
+  
+  if (length(valid_seasons) == 0) {
+    message("⚠️ Onvoldoende data (<1500 punten per seizoen) voor ", kudde)
+    return(NULL)
+  }
+  
+  # Beperk dataset tot seizoenen met genoeg data
+  points_df <- points_df %>% filter(season %in% valid_seasons)
+  
+  # Grenzen bbox
+  bb <- st_bbox(bbox_poly)
+  xlim_vals <- c(as.numeric(bb["xmin"]), as.numeric(bb["xmax"]))
+  ylim_vals <- c(as.numeric(bb["ymin"]), as.numeric(bb["ymax"]))
+  
+  # Plot
+  p <- ggplot() + 
+    geom_bin2d(data = collar_herd, 
+             mapping = aes(x = st_coordinates(geometry)[, 1], 
+                           y = st_coordinates(geometry)[, 2], 
+                           fill = after_stat(ndensity)), 
+             binwidth = c(40, 40)) +
+    scale_fill_viridis_c(option = "D", direction = -1, name = "Dichtheid", na.value = NA, 
+                        limits = c(0, NA)) +
+    facet_wrap(~season) +
+    coord_sf(xlim = xlim_vals, ylim = ylim_vals) +
+    labs(
+      title = paste("Heatmap voor", kudde),
+      subtitle = paste("Alleen seizoenen met ≥1500 punten"),
+      x = "Longitude", y = "Latitude"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.justification = "center",
+      legend.key.width = unit(1.2, "cm"),
+      legend.key.height = unit(0.4, "cm"),
+      legend.margin = margin(t = 0, b = 5, unit = "pt"),
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    ) +
+    guides(
+      fill = guide_legend(nrow = 1, title.position = "top"),
+      color = guide_legend(nrow = 1, title.position = "top")
+    )
+  
+  print(p)
+  
+  # Opslaan
+  output_path <- file.path("../Graphs", paste0("Heathmap_", kudde, ".jpeg"))
+  ggsave(output_path, plot = p, width = 8.27, height = 11.69, units = "in", dpi = 300)
+  
+  message("💾 Opgeslagen: ", output_path)
+  return(p)
+}
+
+# Loop over alle diersoorten
+unique_herds <- unique(collar_herd$Kudde_code)
+message("Aantal kuddes: ", length(unique_herds))
+
+for (h in unique_herds) {
+  plot_heatmap_kudde(h)
+}
+```
+
+```{r spread of positions in biotopes for each season/animal species}
+# Generate plots per season and species in case of minimum 1500 positions per season/pecies
+plot_species_density <- function(dier) {
+  
+  # Filter op diersoort
+  species_data <- collar_herd %>% filter(Diersoort == dier)
+  if (nrow(species_data) == 0) {
+    message("⚠️ Geen data voor ", dier)
+    return(NULL)
+  }
+  
+  # Punten extraheren en NA verwijderen
+  points_df <- st_coordinates(species_data) %>%
+    as.data.frame() %>%
+    rename(X = X, Y = Y) %>%
+    mutate(
+      X = as.numeric(X),
+      Y = as.numeric(Y),
+      season = species_data$season
+    ) %>%
+    filter(!is.na(X) & !is.na(Y))
+  
+  if (nrow(points_df) == 0) {
+    message("⚠️ Alle coördinaten NA voor ", dier)
+    return(NULL)
+  }
+  
+  # Controleer aantal punten per seizoen
+  season_counts <- points_df %>% count(season)
+  valid_seasons <- season_counts %>% filter(n >= 1500) %>% pull(season)
+  
+  if (length(valid_seasons) == 0) {
+    message("⚠️ Onvoldoende data (<1500 punten per seizoen) voor ", dier)
+    return(NULL)
+  }
+  
+  # Beperk dataset tot seizoenen met genoeg data
+  points_df <- points_df %>% filter(season %in% valid_seasons)
+  
+  # Grenzen bbox
+  bb <- st_bbox(bbox_poly)
+  xlim_vals <- c(as.numeric(bb["xmin"]), as.numeric(bb["xmax"]))
+  ylim_vals <- c(as.numeric(bb["ymin"]), as.numeric(bb["ymax"]))
+  
+  # Plot
+  p <- ggplot() +
+    geom_sf(
+      data = expanded_biotope,
+      aes(fill = Biotoopgroep),
+      color = "grey40", linewidth = 0.3, alpha = 0.5
+    ) +
+    scale_fill_manual(
+      name = "Biotoopgroep",
+      values = c(
+        "Bebouwde gebieden" = "darkgrey",
+        "Bossen en struwelen" = "#006400",
+        "Moerassen" = "#008B8B",
+        "Strand en duinen" = "#EED8AE",
+        "Wateren" = "#00BFFF",
+        "Graslanden" = "#9ACD32"
+      ),
+      na.value = "white"
+    ) +
+    new_scale_fill() +
+    geom_density_2d(
+      data = points_df,
+      aes(x = X, y = Y),
+      color = "red",
+      linewidth = 0.5,
+      bins = 10
+    ) +
+    facet_wrap(~season) +
+    coord_sf(xlim = xlim_vals, ylim = ylim_vals) +
+    labs(
+      title = paste("Densiteitskaart voor", dier),
+      subtitle = paste("Alleen seizoenen met ≥1500 punten"),
+      x = "Longitude", y = "Latitude"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.justification = "center",
+      legend.key.width = unit(1.2, "cm"),
+      legend.key.height = unit(0.4, "cm"),
+      legend.margin = margin(t = 0, b = 5, unit = "pt"),
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    ) +
+    guides(
+      fill = guide_legend(nrow = 1, title.position = "top"),
+      color = guide_legend(nrow = 1, title.position = "top")
+    )
+  
+  print(p)
+  
+  # Opslaan
+  output_path <- file.path("../Graphs", paste0("Densiteitskaart_", dier, ".jpeg"))
+  ggsave(output_path, plot = p, width = 8.27, height = 11.69, units = "in", dpi = 300)
+  
+  message("💾 Opgeslagen: ", output_path)
+  return(p)
+}
+
+# Loop over alle diersoorten
+unique_species <- unique(collar_herd$Diersoort)
+message("Aantal diersoorten: ", length(unique_species))
+
+for (d in unique_species) {
+  plot_species_density(d)
+}
+```
+
+```{r collar positions per biotope per season/species}
+biotope_shp <- st_transform(biotope, st_crs(collar_herd))
+# Spatial join and add Biotooptype
+collar_biotope <- collar_herd %>%
+  st_join(biotope_shp %>% dplyr::select(Biotoopgroep), join = st_within) %>%
+  filter(!is.na(Biotoopgroep))
+
+# Table - collar positions per year per biotope per season [absolute values]
+biotope_counts <- collar_biotope %>%
+  group_by(year, Biotoopgroep, season, Diersoort) %>%
+  dplyr::summarise(count = dplyr::n(), .groups = 'drop') %>%  # Count occurrences
+  pivot_wider(
+    names_from = season, 
+    values_from = count, 
+    values_fill = list(count = 0)  # Replace missing counts with 0
+  ) %>%
+  st_drop_geometry() %>%  # Remove spatial information to work with regular data
+  as.data.frame() %>%  # Explicitly convert to data frame
+  mutate(
+    all_year = rowSums(.[, c("Winter", "Lente", "Zomer", "Herfst")], na.rm = TRUE)  # Total counts across seasons
+  ) %>%
+  filter(all_year > 0) %>%  # Filter out biotopes with no observations
+  group_by(year, Biotoopgroep, Diersoort) %>%  # Group by year and biotope for yearly summarisation
+  dplyr::summarise(
+    Winter = sum(Winter, na.rm = TRUE),
+    Lente = sum(Lente, na.rm = TRUE),
+    Zomer = sum(Zomer, na.rm = TRUE),
+    Herfst = sum(Herfst, na.rm = TRUE),
+    all_year = sum(all_year, na.rm = TRUE),
+    .groups = 'drop'  # Ungroup after summarising
+  )
+
+# If you want the output formatted for easier interpretation
+biotope_counts %>%
+  arrange(year, Biotoopgroep)  # Arrange by year and biotope for readability
+
+```
+
+```{r use of biotopes stacked bars}
+biotope_counts_long <- biotope_counts %>%
+  pivot_longer(cols = Winter:Herfst, names_to = "Seizoen", values_to = "Aantal") %>%
+  mutate(Seizoen = factor(Seizoen, levels = c("Winter", "Lente", "Zomer", "Herfst"))) %>%
+  group_by(Diersoort, Seizoen, Biotoopgroep) %>%
+  summarise(Aantal = sum(Aantal, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Diersoort, Seizoen) %>%
+  mutate(relatief = (Aantal / sum(Aantal, na.rm = TRUE)) * 100,
+         label = round(relatief, 0))
+
+p <- ggplot(biotope_counts_long,
+       aes(x = Seizoen, y = relatief, fill = Biotoopgroep)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = ifelse(relatief > 5, label, "")),
+            position = position_stack(vjust = 0.5),
+            color = "black", size = 3) +
+  facet_wrap(~ Diersoort, ncol = 1, scales = "free_y") +
+  scale_fill_manual(
+    values = c(
+      "Bebouwde gebieden" = "darkgrey",
+      "Bossen en struwelen" = "#006400",
+      "Moerassen" = "#008B8B",
+      "Strand en duinen" = "#EED8AE",
+      "Wateren" = "#00BFFF",
+      "Graslanden" = "#9ACD32"
+    )
+  ) +
+  labs(
+    x = "Seizoen",
+    y = "Relatief aandeel (%)",
+    fill = "Biotoopgroep",
+    title = "Biotoopvoorkeur"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text = element_text(size = 18, face = "bold", color = "#333333"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave(
+  file.path(output_path_figures, paste0("biotoop_rel_aandeel_", location, ".jpeg")),
+  plot = p,
+  width = 8.3,
+  height = 11.7,
+  units = "in",
+  dpi = 300
+)
+
+
+p
+```
+
+```{r relative to biotope area available}
+biotope_clip <- st_intersection(biotope_shp, raster)
+plot(biotope_clip)
+
+biotope_clip$oppervlakte_ha <- as.numeric(st_area(biotope_clip)) / 10000
+
+options(scipen = 999)
+
+biotope_opp <- biotope_clip %>% 
+  group_by(Biotoopgroep) %>% 
+  summarize(oppervlakte_ha = sum(oppervlakte_ha), .groups = "drop") %>% 
+  st_drop_geometry() %>% 
+  mutate(oppervlakte_m2 = round(oppervlakte_ha*10000, 0))
+
+sum_biotope <- sum(biotope_opp$oppervlakte_m2)
+sum_raster <- sum(raster$Shape_Area)
+
+#dont use in general script
+#Positions per hetare
+biotope_counts_long_2024 <- biotope_counts %>%
+  filter(year == 2024) %>% 
+  pivot_longer(cols = Winter:Herfst, names_to = "Seizoen", values_to = "Aantal") %>%
+  mutate(Seizoen = factor(Seizoen, levels = c("Winter", "Lente", "Zomer", "Herfst"))) %>%
+  group_by(Diersoort, Seizoen, Biotoopgroep) %>%
+  summarise(Aantal = sum(Aantal, na.rm = TRUE), .groups = "drop") %>%
+  left_join(biotope_opp, by = "Biotoopgroep") %>% 
+  group_by(Diersoort, Seizoen) %>%
+  mutate(rel_biotoop = round(oppervlakte_ha/sum(oppervlakte_ha), 2)) %>% 
+  mutate(rel_pos_ha = round(rel_biotoop*Aantal, 0)) %>%
+  mutate(relatief = (rel_pos_ha / sum(rel_pos_ha, na.rm = TRUE)) * 100,
+         label = round(relatief, 0))
+
+p1 <- ggplot(biotope_counts_long_2024,
+       aes(x = Seizoen, y = relatief, fill = Biotoopgroep)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = ifelse(relatief > 5, label, "")),
+            position = position_stack(vjust = 0.5),
+            color = "black", size = 3) +
+  facet_wrap(~ Diersoort, ncol = 1, scales = "free_y") +
+  scale_fill_manual(
+    values = c(
+      "Bebouwde gebieden" = "darkgrey",
+      "Bossen en struwelen" = "#006400",
+      "Moerassen" = "#008B8B",
+      "Strand en duinen" = "#EED8AE",
+      "Wateren" = "#00BFFF",
+      "Graslanden" = "#9ACD32"
+    )
+  ) +
+  labs(
+    x = "Seizoen",
+    y = "Relatief aandeel (%)",
+    fill = "Biotoopgroep",
+    title = "Biotoopvoorkeur gewogen naar biotoopoppervlakte"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text = element_text(size = 18, face = "bold", color = "#333333"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave(
+  file.path(output_path_figures, paste0("biotoop_gewogen_opp_", location, ".jpeg")),
+  plot = p1,
+  width = 8.3,
+  height = 11.7,
+  units = "in",
+  dpi = 300
+)
+
+
+p1
+         
+
+
+```
+

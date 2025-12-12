@@ -1,0 +1,28 @@
+---
+toc: false
+---
+
+# Inleiding
+
+```{r}
+#| include: FALSE
+# set up
+library(knitr)
+opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  out.width = "100%"
+)
+```
+
+## Terreingebruik door grote grazers
+
+@fig-grazers-map toont het terreingebruik door grote grazers in Vlaanderen
+
+```{r }
+#| label: fig-grazers-map
+#| fig-cap: Kaart van terreingebruik door grote grazers in Vlaanderen
+knitr::include_graphics("figures/grazers_map.png")
+
+```

@@ -1,0 +1,72 @@
+## {{specname_cap}}
+
+```{r}
+#| include: FALSE
+# set up
+library(knitr)
+opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  out.width = "100%"
+)
+```
+
+```{r}
+#| output: asis
+# To make it easier
+params <- NULL
+params$gebied <- "{{species}}"
+
+
+text <- readLines(con = paste0(here::here(), "/child_files/", params$gebied, "-1-inl.md"))
+# Show summary metrics only
+cat(text)
+```
+
+### Terreingebruik in {{specname_cap}}
+
+```{r }
+#| include: FALSE
+
+library(broom)
+library(dplyr)
+library(ggmap)
+library(ggplot2)
+library(googlesheets4)
+#gs4_auth()
+library(gridExtra)
+library(here) 
+library(leaflet)
+library(leaflet.extras)
+library(mapview)
+library(ggnewscale)
+library(kableExtra)
+library(knitr)
+library(patchwork)
+library(purrr)
+library(prismatic) 
+library(raster)
+library(readxl)
+library(scales)
+library(sf)
+library(terra)
+library(tidyr)
+library(tidyterra)
+library(tidyverse)
+library(viridis)
+```
+
+```{r}
+
+#Edit the code according to the years of interest
+years <- c("2020","2021","2022","2023","2024")
+
+#Set base directory
+base_directory <-
+  googledrive::drive_get(
+    googledrive::as_id("1poaQsfB0hkeaAZ0Ka_EqnhbKcAm0j8iA"))
+googledrive::drive_ls( googledrive::as_id("1poaQsfB0hkeaAZ0Ka_EqnhbKcAm0j8iA"))
+gebied_dir <- 
+  googledrive::drive_find(params$gebied)
+```
