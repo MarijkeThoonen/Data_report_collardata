@@ -78,7 +78,7 @@ autoqmd_prepare(
   species = region_vec,
   specname_cap = firstup(region_vec),
   specname_low = tolower(region_vec),
-  label = gsub("\\s", ".", tolower(region_vec)),
+  label = gsub("\\s", "-", tolower(region_vec)),
   template = "_template_regio.qmd",
   child_dir = "child_files/gebieden",
   qmd_file = "2_resultaten.qmd",
