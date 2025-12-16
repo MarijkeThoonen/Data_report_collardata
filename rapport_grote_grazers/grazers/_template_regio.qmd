@@ -21,7 +21,7 @@ params$gebied <- "{{species}}"
 
 text <- readLines(con = paste0(here::here(), "/child_files/", params$gebied, "-1-inl.md"))
 # Show summary metrics only
-cat(text)
+cat(text, sep = "\n")
 ```
 
 ### Terreingebruik in {{specname_cap}}
@@ -62,11 +62,508 @@ library(viridis)
 #Edit the code according to the years of interest
 years <- c("2020","2021","2022","2023","2024")
 
-#Set base directory
-base_directory <-
-  googledrive::drive_get(
-    googledrive::as_id("1poaQsfB0hkeaAZ0Ka_EqnhbKcAm0j8iA"))
-googledrive::drive_ls( googledrive::as_id("1poaQsfB0hkeaAZ0Ka_EqnhbKcAm0j8iA"))
-gebied_dir <- 
-  googledrive::drive_find(params$gebied)
+#Set directory for "R scripts PB07_Begrazing_Collars" folder (on your local (G)drive)
+datafolder <- Sys.getenv("data_folder")
+base_directory <- paste0(datafolder, "/", params$gebied, "/Over jaren heen")
+```
+
+```{r}
+#| echo: FALSE
+# Function to load collar data for a specific year
+load_collar_data <- function(year) {
+  file_path <- file.path(base_directory, "..", year, "Processed data", "collardata.shp")
+  if (file.exists(file_path)) {
+    read_sf(file_path) %>%
+      dplyr::rename(
+        temperature = temprtr,
+        datetime = datetim,
+        id_collar = id_cllr,
+        day_part = day_prt
+      ) %>%
+      mutate(
+        temperature = as.numeric(temperature), # Standardize to numeric
+        datetime = as.POSIXct(datetime),       # Standardize datetime
+        year = year                            # Add a year column
+      )
+  } else {
+    NULL
+  }
+}
+
+# Iterate over the years and combine data
+collar <- bind_rows(map(years, load_collar_data))
+
+rm(load_collar_data)
+```
+
+```{r}
+#| error: false
+#| message: false
+#| warning: false
+#| include: false
+# #raster 
+# #noord en zuid, without exclosures
+# shapefile_directory <- normalizePath(file.path(datafolder, "Vlaanderen - over studie gebieden heen", "2023", "Processed data"))
+# 
+# 
+# #TO DO de rasters moeten op een gestandaardiseerde locatie staan en een gestandaardiseerde naam hebben.
+# gebied_raster <- st_read(file.path(shapefile_directory, "Raster_Westhoek_2022.shp"))
+# 
+# rm(shapefile_directory)
+
+#biotope groups 
+biotope_directory <-
+  normalizePath(file.path(datafolder,
+                          "Vlaanderen - over studie gebieden heen", "BWK" ))
+
+biotope <- st_read(file.path(biotope_directory, "GIS_data2025_biotope.gpkg"))
+
+biotope <- st_make_valid(biotope)
+
+rm(biotope_directory)
+
+gebied_lower <- str_to_lower(str_remove_all(params$gebied, " "))
+output_path_figures <-
+    paste0(datafolder,
+           "/Data_report_collardata/Datarapport_grote_grazers/figures")
+
+output_path <- file.path(output_path_figures, paste0("Ortho_",
+                                                   gebied_lower, ".jpeg"))
+if (!file.exists(output_path)) {
+#ortho photo
+ortho_directory <-
+  normalizePath(
+    file.path(
+      datafolder, "Vlaanderen - over studie gebieden heen", "Luchtfotos"))
+if (file.exists(paste0(ortho_directory, "/",
+                       str_to_lower(str_remove_all(params$gebied, " ")),
+                       ".tif"))) {
+  ortho <-
+    rast(
+      paste0(
+        ortho_directory, "/",
+        gebied_lower, ".tif"))
+  crs(ortho) <- "EPSG:31370"  # Lambert 72
+  ortho_df <- as.data.frame(ortho, xy = TRUE)
+
+  ortho_df <- ortho_df %>%
+    mutate(hex = rgb(.[[3]]/255, .[[4]]/255, .[[5]]/255)) # Voeg hex-kleur toe
+
+  ortho_raster <- ggplot(ortho_df, aes(x = x, y = y, fill = hex)) +
+    geom_raster() +
+    scale_fill_identity() +
+    coord_sf() +
+    theme_minimal()
+  if (exists("gebied_raster")) {
+    ortho_raster <- ortho_raster +
+      geom_sf(data = raster, inherit.aes = FALSE,
+              fill = NA, color = "red", size = 0.5)
+  }
+  ggsave(output_path,
+         plot = ortho_raster, width = 8.27,
+         height = 11.69, units = "in", dpi = 300)
+
+  rm(ortho_directory)
+  rm(ortho)
+  rm(ortho_df)
+  rm(ortho_raster)
+  rm(output_path)
+} else {
+  ortho <- NULL
+}
+}
+
+show_photo <- file.exists(output_path)
+#this needs a caption: "Luchtfoto van het Westhoekreservaat met het noordelijke en zuidelijke graasblok."
+```
+
+```{r }
+#| label: fig-ortho-{{label}}
+#| fig-cap: Luchtfoto van {{species}}
+##| eval: !expr show_photo
+if (file.exists(output_path)) {
+  knitr::include_graphics(output_path)
+} else {
+  knitr::include_graphics("figures/todo.png")
+}
+```
+
+```{r }
+#|eval: true
+
+# TO DO kolom Gebied niet aanwezig in de sheet
+#Load file with animal species
+sheet_url <- "11AMe6Ec1wfqP8PIFok-fldt-Yg0GcYk8Lz6hDwOE6Zw"
+herd <- read_sheet(sheet_url) %>% 
+  filter(`Kalmthoutse heide` == params$gebied) %>%
+  mutate(Jaar = as.character(Jaar))
+
+rm(sheet_url)
+if (nrow(herd) > 0) {
+#Add animal species
+collar_herd <- collar %>%
+  left_join(herd, by = c("id_collar" = "Serienummer", "year" = "Jaar")) %>% 
+  filter(!is.na(Kudde_code))
+if (nrow(collar_herd) > 0) {
+collar_herd <- collar_herd %>%
+  mutate(month = format(date, "%m"),  # Extract month from the date
+         season = case_when(
+           month %in% c("12", "01", "02") ~ "Winter",
+           month %in% c("03", "04", "05") ~ "Lente",
+           month %in% c("06", "07", "08") ~ "Zomer",
+           month %in% c("09", "10", "11") ~ "Herfst",
+           TRUE ~ NA_character_  # Fallback in case of unexpected values
+         ))
+
+# Define the seasons
+seasons <- c("Winter", "Lente", "Zomer", "Herfst")
+
+# Ensure season is a factor with the correct order
+collar_herd <- collar_herd %>%
+  mutate(season = factor(season, levels = c("Winter", "Lente", "Zomer", "Herfst")))
+
+# Bounding box van alle collars
+all_bbox <- st_bbox(collar_herd) # maak een bbox-class
+
+# Vergroot de bbox met 10 pct
+x_margin <- (all_bbox["xmax"] - all_bbox["xmin"]) * 0.1
+y_margin <- (all_bbox["ymax"] - all_bbox["ymin"]) * 0.1
+all_bbox["xmin"] <- all_bbox["xmin"] - x_margin
+all_bbox["xmax"] <- all_bbox["xmax"] + x_margin
+all_bbox["ymin"] <- all_bbox["ymin"] - y_margin
+all_bbox["ymax"] <- all_bbox["ymax"] + y_margin
+
+bbox_poly <- st_as_sfc(all_bbox) # maak sf-polygon
+st_crs(bbox_poly) <- st_crs(collar_herd) # zelfde CRS als
+if (st_crs(collar_herd) != st_crs(biotope)) { # Controleert of CRS van collar en biotope verschillen en transformeert bbox_poly naar CRS van biotope als dat zo is.
+  bbox_poly <- st_transform(bbox_poly, st_crs(biotope))
+} 
+
+# Begrens biotope tot collar_herd bbox
+expanded_biotope <- st_intersection(biotope, st_make_valid(bbox_poly))
+  } else {
+    rm(collar_herd)
+  }
+}
+```
+
+```{r}
+#| label: tab-kuddes-{{label}}
+#| eval: true
+
+#voorlopig nog op eval = FALSE want kolom "Gebied" zit niet in de google sheet
+#This table needs an automated caption
+#Tabel x. Gegevens (diersoort, graasperiode, kuddegrootte, monitoring) over de verschillende kuddes die grazen in de onderzochte graasblokken.
+
+if (nrow(herd) > 0 & (exists("collar_herd"))) {
+# Eventueel NA’s vervangen door "Na" voor nettere weergave
+herd <- herd %>%
+  mutate(across(everything(), ~replace(., is.na(.), "Na")))
+
+# Maak de tabel
+kable(herd, 
+      caption = "Overzicht van de kuddes in de onderzochte graasblokken (diersoort, graasperiode, kuddegrootte, monitoring).",
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"),
+                full_width = FALSE,
+                position = "center") %>%
+  column_spec(1, bold = TRUE)  # bijvoorbeeld eerste kolom dikgedrukt
+}
+
+```
+
+```{r }
+if (nrow(herd) > 0 & (exists("collar_herd"))) {
+# heatmaps per season/species
+# Generate heatmap with faceting by year and season
+plot_heatmap <- function(dier) {
+  
+  # Filter op diersoort
+  species_data <- collar_herd %>% filter(Diersoort == dier)
+  if (nrow(species_data) == 0) {
+    message("⚠️ Geen data voor ", dier)
+    return(NULL)
+  }
+  
+  # Punten extraheren en NA verwijderen
+  points_df <- st_coordinates(species_data) %>%
+    as.data.frame() %>%
+    rename(X = X, Y = Y) %>%
+    mutate(
+      X = as.numeric(X),
+      Y = as.numeric(Y),
+      season = species_data$season
+    ) %>%
+    filter(!is.na(X) & !is.na(Y))
+  
+  if (nrow(points_df) == 0) {
+    message("⚠️ Alle coördinaten NA voor ", dier)
+    return(NULL)
+  }
+  
+  # Controleer aantal punten per seizoen
+  season_counts <- points_df %>% count(season)
+  valid_seasons <- season_counts %>% filter(n >= 1500) %>% pull(season)
+  
+  if (length(valid_seasons) == 0) {
+    message("⚠️ Onvoldoende data (<1500 punten per seizoen) voor ", dier)
+    return(NULL)
+  }
+  
+  # Beperk dataset tot seizoenen met genoeg data
+  points_df <- points_df %>% filter(season %in% valid_seasons)
+  
+  # Grenzen bbox
+  bb <- st_bbox(bbox_poly)
+  xlim_vals <- c(as.numeric(bb["xmin"]), as.numeric(bb["xmax"]))
+  ylim_vals <- c(as.numeric(bb["ymin"]), as.numeric(bb["ymax"]))
+  
+  # Plot
+  p <- ggplot() + 
+    geom_bin2d(data = collar_herd, 
+             mapping = aes(x = st_coordinates(geometry)[, 1], 
+                           y = st_coordinates(geometry)[, 2], 
+                           fill = after_stat(ndensity)), 
+             binwidth = c(40, 40)) +
+    scale_fill_viridis_c(option = "D", direction = -1, name = "Dichtheid", na.value = NA, 
+                        limits = c(0, NA)) +
+    facet_wrap(~season) +
+    coord_sf(xlim = xlim_vals, ylim = ylim_vals) +
+    labs(
+      title = paste("Heatmap voor", dier),
+      subtitle = paste("Alleen seizoenen met ≥1500 punten"),
+      x = "Longitude", y = "Latitude"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.justification = "center",
+      legend.key.width = unit(1.2, "cm"),
+      legend.key.height = unit(0.4, "cm"),
+      legend.margin = margin(t = 0, b = 5, unit = "pt"),
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    ) +
+    guides(
+      fill = guide_legend(nrow = 1, title.position = "top"),
+      color = guide_legend(nrow = 1, title.position = "top")
+    )
+  
+  print(p)
+  
+  # Opslaan
+  output_path <- file.path("./figures",
+                           paste0("Heathmap_", dier, params$gebied, ".jpeg"))
+  ggsave(output_path, plot = p, width = 8.27,
+         height = 11.69, units = "in", dpi = 300)
+  
+  #message("💾 Opgeslagen: ", output_path)
+  return(p)
+}
+
+# Loop over alle diersoorten
+unique_species <- unique(collar_herd$Diersoort)
+message("Aantal diersoorten: ", length(unique_species))
+
+for (d in unique_species) {
+  plot_heatmap(d)
+}
+}
+```
+
+```{r }
+#| label: fig-heatmap-season-species-{{label}}
+#| fig-cap: De heatmaps tonen gebruik van het gebied per jaar en per seizoen in  {{species}}
+##| eval: !expr show_photo
+if (nrow(herd) > 0 & (exists("collar_herd"))) {
+  for (d in unique_species) {
+    knitr::include_graphics(file.path("./figures",
+                           paste0("Heathmap_", d, params$gebied, ".jpeg")))
+  }
+  
+} else {
+  knitr::include_graphics("figures/todo.png")
+}
+```
+
+```{r}
+#| label: tab-biotope-season-{{species}}
+
+if (nrow(herd) > 0 & (exists("collar_herd"))) {
+biotope_shp <- st_transform(biotope, st_crs(collar_herd))
+# Spatial join and add Biotooptype
+collar_biotope <- collar_herd %>%
+  st_join(biotope_shp %>% dplyr::select(Biotoopgroep), join = st_within) %>%
+  filter(!is.na(Biotoopgroep))
+
+# Table - collar positions per year per biotope per season [absolute values]
+biotope_counts <- collar_biotope %>%
+  group_by(year, Biotoopgroep, season, Diersoort) %>%
+  dplyr::summarise(count = dplyr::n(), .groups = 'drop') %>%  # Count occurrences
+  pivot_wider(
+    names_from = season, 
+    values_from = count, 
+    values_fill = list(count = 0)  # Replace missing counts with 0
+  ) %>%
+  st_drop_geometry() %>%  # Remove spatial information to work with regular data
+  as.data.frame() %>%  # Explicitly convert to data frame
+  mutate(
+    all_year = rowSums(.[, c("Winter", "Lente", "Zomer", "Herfst")], na.rm = TRUE)  # Total counts across seasons
+  ) %>%
+  filter(all_year > 0) %>%  # Filter out biotopes with no observations
+  group_by(year, Biotoopgroep, Diersoort) %>%  # Group by year and biotope for yearly summarisation
+  dplyr::summarise(
+    Winter = sum(Winter, na.rm = TRUE),
+    Lente = sum(Lente, na.rm = TRUE),
+    Zomer = sum(Zomer, na.rm = TRUE),
+    Herfst = sum(Herfst, na.rm = TRUE),
+    all_year = sum(all_year, na.rm = TRUE),
+    .groups = 'drop'  # Ungroup after summarising
+  )
+
+# If you want the output formatted for easier interpretation
+biotope_counts %>%
+  arrange(year, Biotoopgroep) %>% # Arrange by year and biotope for readability
+  kable(caption = "collar positions per biotope per season/species")
+}
+```
+
+```{r }
+#| label: fig-biotope-bars-{{species}}
+#| fig-cap: "Gebruik van biotopen."
+if (nrow(herd) > 0 & (exists("collar_herd"))) {
+biotope_counts_long <- biotope_counts %>%
+  pivot_longer(cols = Winter:Herfst, names_to = "Seizoen", values_to = "Aantal") %>%
+  mutate(Seizoen = factor(Seizoen, levels = c("Winter", "Lente", "Zomer", "Herfst"))) %>%
+  group_by(Diersoort, Seizoen, Biotoopgroep) %>%
+  summarise(Aantal = sum(Aantal, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Diersoort, Seizoen) %>%
+  mutate(relatief = (Aantal / sum(Aantal, na.rm = TRUE)) * 100,
+         label = round(relatief, 0))
+
+p <- ggplot(biotope_counts_long,
+       aes(x = Seizoen, y = relatief, fill = Biotoopgroep)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = ifelse(relatief > 5, label, "")),
+            position = position_stack(vjust = 0.5),
+            color = "black", size = 3) +
+  facet_wrap(~ Diersoort, ncol = 1, scales = "free_y") +
+  scale_fill_manual(
+    values = c(
+      "Bebouwde gebieden" = "darkgrey",
+      "Bossen en struwelen" = "#006400",
+      "Moerassen" = "#008B8B",
+      "Strand en duinen" = "#EED8AE",
+      "Wateren" = "#00BFFF",
+      "Graslanden" = "#9ACD32"
+    )
+  ) +
+  labs(
+    x = "Seizoen",
+    y = "Relatief aandeel (%)",
+    fill = "Biotoopgroep",
+    title = "Biotoopvoorkeur"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text = element_text(size = 18, face = "bold", color = "#333333"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave(
+  file.path(output_path_figures, paste0("biotoop_rel_aandeel_", params$gebied, ".jpeg")),
+  plot = p,
+  width = 8.3,
+  height = 11.7,
+  units = "in",
+  dpi = 300
+)
+
+
+p
+}
+```
+
+```{r }
+#| label: fig-rel-avail-biotope-{{species}}
+#| fig-cap: relative to biotope area available
+#| eval: false
+
+#to do: rasters staan nog niet op een gestandaardiseerde plaats met een gestandaardiseerde naam.
+biotope_clip <- st_intersection(biotope_shp, raster)
+plot(biotope_clip)
+
+biotope_clip$oppervlakte_ha <- as.numeric(st_area(biotope_clip)) / 10000
+
+options(scipen = 999)
+
+biotope_opp <- biotope_clip %>% 
+  group_by(Biotoopgroep) %>% 
+  summarize(oppervlakte_ha = sum(oppervlakte_ha), .groups = "drop") %>% 
+  st_drop_geometry() %>% 
+  mutate(oppervlakte_m2 = round(oppervlakte_ha*10000, 0))
+
+sum_biotope <- sum(biotope_opp$oppervlakte_m2)
+sum_raster <- sum(raster$Shape_Area)
+
+#dont use in general script
+#Positions per hetare
+biotope_counts_long_2024 <- biotope_counts %>%
+  filter(year == 2024) %>% 
+  pivot_longer(cols = Winter:Herfst, names_to = "Seizoen", values_to = "Aantal") %>%
+  mutate(Seizoen = factor(Seizoen, levels = c("Winter", "Lente", "Zomer", "Herfst"))) %>%
+  group_by(Diersoort, Seizoen, Biotoopgroep) %>%
+  summarise(Aantal = sum(Aantal, na.rm = TRUE), .groups = "drop") %>%
+  left_join(biotope_opp, by = "Biotoopgroep") %>% 
+  group_by(Diersoort, Seizoen) %>%
+  mutate(rel_biotoop = round(oppervlakte_ha/sum(oppervlakte_ha), 2)) %>% 
+  mutate(rel_pos_ha = round(rel_biotoop*Aantal, 0)) %>%
+  mutate(relatief = (rel_pos_ha / sum(rel_pos_ha, na.rm = TRUE)) * 100,
+         label = round(relatief, 0))
+
+p1 <- ggplot(biotope_counts_long_2024,
+       aes(x = Seizoen, y = relatief, fill = Biotoopgroep)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = ifelse(relatief > 5, label, "")),
+            position = position_stack(vjust = 0.5),
+            color = "black", size = 3) +
+  facet_wrap(~ Diersoort, ncol = 1, scales = "free_y") +
+  scale_fill_manual(
+    values = c(
+      "Bebouwde gebieden" = "darkgrey",
+      "Bossen en struwelen" = "#006400",
+      "Moerassen" = "#008B8B",
+      "Strand en duinen" = "#EED8AE",
+      "Wateren" = "#00BFFF",
+      "Graslanden" = "#9ACD32"
+    )
+  ) +
+  labs(
+    x = "Seizoen",
+    y = "Relatief aandeel (%)",
+    fill = "Biotoopgroep",
+    title = "Biotoopvoorkeur gewogen naar biotoopoppervlakte"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text = element_text(size = 18, face = "bold", color = "#333333"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave(
+  file.path(output_path_figures, paste0("biotoop_gewogen_opp_", location, ".jpeg")),
+  plot = p1,
+  width = 8.3,
+  height = 11.7,
+  units = "in",
+  dpi = 300
+)
+
+
+p1
 ```
