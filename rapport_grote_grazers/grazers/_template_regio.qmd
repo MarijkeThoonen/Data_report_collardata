@@ -195,7 +195,7 @@ if (file.exists(output_path)) {
 #Load file with animal species
 sheet_url <- "11AMe6Ec1wfqP8PIFok-fldt-Yg0GcYk8Lz6hDwOE6Zw"
 herd <- read_sheet(sheet_url) %>% 
-  filter(`Kalmthoutse heide` == params$gebied) %>%
+  filter(`Gebied` == params$gebied) %>%
   mutate(Jaar = as.character(Jaar))
 
 rm(sheet_url)
@@ -407,7 +407,13 @@ biotope_counts <- collar_biotope %>%
     values_fill = list(count = 0)  # Replace missing counts with 0
   ) %>%
   st_drop_geometry() %>%  # Remove spatial information to work with regular data
-  as.data.frame() %>%  # Explicitly convert to data frame
+  as.data.frame() # Explicitly convert to data frame
+missing_seasons <- which(!(c("Winter", "Lente", "Zomer", "Herfst") %in%
+                   colnames(biotope_counts)))
+if (length(missing_seasons > 0)) {
+  biotope_counts[c("Winter", "Lente", "Zomer", "Herfst")[missing_seasons]] <- NA
+}
+biotope_counts <- biotope_counts %>%
   mutate(
     all_year = rowSums(.[, c("Winter", "Lente", "Zomer", "Herfst")], na.rm = TRUE)  # Total counts across seasons
   ) %>%
@@ -473,14 +479,14 @@ p <- ggplot(biotope_counts_long,
     panel.grid.major.x = element_blank()
   )
 
-ggsave(
-  file.path(output_path_figures, paste0("biotoop_rel_aandeel_", params$gebied, ".jpeg")),
-  plot = p,
-  width = 8.3,
-  height = 11.7,
-  units = "in",
-  dpi = 300
-)
+# ggsave(
+#   file.path(output_path_figures, paste0("biotoop_rel_aandeel_", params$gebied, ".jpeg")),
+#   plot = p,
+#   width = 8.3,
+#   height = 11.7,
+#   units = "in",
+#   dpi = 300
+# )
 
 
 p
@@ -555,14 +561,14 @@ p1 <- ggplot(biotope_counts_long_2024,
     panel.grid.major.x = element_blank()
   )
 
-ggsave(
-  file.path(output_path_figures, paste0("biotoop_gewogen_opp_", location, ".jpeg")),
-  plot = p1,
-  width = 8.3,
-  height = 11.7,
-  units = "in",
-  dpi = 300
-)
+# ggsave(
+#   file.path(output_path_figures, paste0("biotoop_gewogen_opp_", location, ".jpeg")),
+#   plot = p1,
+#   width = 8.3,
+#   height = 11.7,
+#   units = "in",
+#   dpi = 300
+# )
 
 
 p1
