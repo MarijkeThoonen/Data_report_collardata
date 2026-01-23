@@ -177,6 +177,9 @@ show_photo <- file.exists(output_path)
 #this needs a caption: "Luchtfoto van het Westhoekreservaat met het noordelijke en zuidelijke graasblok."
 ```
 
+Dit is een verwijzing naar een figuur: @fig-ortho-{{label}}.
+Het label van een figuur moet steeds beginnen met "fig-".
+
 ```{r }
 #| label: fig-ortho-{{label}}
 #| fig-cap: Luchtfoto van {{species}}
@@ -247,8 +250,11 @@ expanded_biotope <- st_intersection(biotope, st_make_valid(bbox_poly))
 }
 ```
 
+Dit is een verwijzing naar een tabel: @tbl-kuddes-{{label}}.
+Het label van een tabel moet steeds beginnen met "tbl-".
+
 ```{r}
-#| label: tab-kuddes-{{label}}
+#| label: tbl-kuddes-{{label}}
 #| eval: true
 
 #voorlopig nog op eval = FALSE want kolom "Gebied" zit niet in de google sheet
@@ -268,6 +274,9 @@ kable(herd,
                 full_width = FALSE,
                 position = "center") %>%
   column_spec(1, bold = TRUE)  # bijvoorbeeld eerste kolom dikgedrukt
+} else {
+  tibble(a=1, b=2, c=3) %>%
+    kable(caption = "tabel niet beschikbaar. Overzicht van de kuddes in de onderzochte graasblokken (diersoort, graasperiode, kuddegrootte, monitoring)")
 }
 
 ```
@@ -388,7 +397,7 @@ if (nrow(herd) > 0 & (exists("collar_herd"))) {
 ```
 
 ```{r}
-#| label: tab-biotope-season-{{species}}
+#| label: tbl-biotope-season-{{species}}
 
 if (nrow(herd) > 0 & (exists("collar_herd"))) {
 biotope_shp <- st_transform(biotope, st_crs(collar_herd))
@@ -432,6 +441,9 @@ biotope_counts <- biotope_counts %>%
 biotope_counts %>%
   arrange(year, Biotoopgroep) %>% # Arrange by year and biotope for readability
   kable(caption = "collar positions per biotope per season/species")
+} else {
+  tibble(a=1, b=2, c=3) %>%
+    kable(caption = "Tabel niet beschikbaar. Collar positions per biotope per season/species")
 }
 ```
 
@@ -493,7 +505,7 @@ p
 }
 ```
 
-```{r }
+```{r}
 #| label: fig-rel-avail-biotope-{{species}}
 #| fig-cap: relative to biotope area available
 #| eval: false

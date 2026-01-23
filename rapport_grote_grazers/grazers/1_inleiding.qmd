@@ -20,7 +20,7 @@ opts_chunk$set(
 
 @fig-grazers-map toont het terreingebruik door grote grazers in Vlaanderen
 
-```{r }
+```{r}
 #| label: fig-grazers-map
 #| fig-cap: Kaart van terreingebruik door grote grazers in Vlaanderen
 knitr::include_graphics("figures/grazers_map.png")
