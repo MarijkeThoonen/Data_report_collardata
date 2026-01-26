@@ -22,8 +22,7 @@ autoqmd_finalise <- function(
 }
 
 # Globals
-files <- c("09_densiteitsschattingen.qmd", "detection_curves.qmd",
-           "densities_tables.qmd")
+files <- c("2_resultaten.qmd")
 
 msg <- c(
   "",
@@ -38,8 +37,7 @@ msg <- c(
 autoqmd_finalise(
   qmd_files = files,
   message = msg,
-  child_dirs_rm = c("child_files/spec_files_detection_curves",
-                    "child_files/spec_files_densities_tables")
+  child_dirs_rm = c("child_files/gebieden")
 )
 
 # Flanders qmd post render

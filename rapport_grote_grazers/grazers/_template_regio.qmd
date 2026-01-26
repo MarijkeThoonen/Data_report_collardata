@@ -397,7 +397,7 @@ if (nrow(herd) > 0 & (exists("collar_herd"))) {
 ```
 
 ```{r}
-#| label: tbl-biotope-season-{{species}}
+#| label: tbl-biotope-season-{{label}}
 
 if (nrow(herd) > 0 & (exists("collar_herd"))) {
 biotope_shp <- st_transform(biotope, st_crs(collar_herd))
@@ -448,7 +448,7 @@ biotope_counts %>%
 ```
 
 ```{r }
-#| label: fig-biotope-bars-{{species}}
+#| label: fig-biotope-bars-{{label}}
 #| fig-cap: "Gebruik van biotopen."
 if (nrow(herd) > 0 & (exists("collar_herd"))) {
 biotope_counts_long <- biotope_counts %>%
@@ -506,7 +506,7 @@ p
 ```
 
 ```{r}
-#| label: fig-rel-avail-biotope-{{species}}
+#| label: fig-rel-avail-biotope-{{label}}
 #| fig-cap: relative to biotope area available
 #| eval: false
 
